@@ -1,0 +1,49 @@
+<?php
+
+function nasform_schema() {
+  $schema['nasform_table'] = array(
+    'description' => t('Table for nasform module'),
+    'fields' => array(
+      'id'  => array(
+        'type' => 'serial',
+         'unsigned' => TRUE,
+         'not null' => TRUE,
+        'description' => t('Creator user\'s {users}.uid.'),
+      ),
+        'name' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'Name of the person.',
+      ),
+      'login' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'Login of the person.',
+      ),
+      'mail' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'Email of the person.',
+      ),
+      'pass' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'Password of the person.',
+      ),
+      ),
+    'primary key' => array('id'),
+);
+  
+  $schema['cache_nasform'] = drupal_get_schema_unprocessed('system', 'cache');
+   return $schema;
+}
+
+

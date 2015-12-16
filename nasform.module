@@ -1,0 +1,436 @@
+<?php
+
+/**
+ * @file
+ * A module that displays a registration form.
+ * User: Anastasiia Granko
+ * Date: 23.11.15
+ */
+module_load_include('inc', 'nasform', 'nasform.admin');
+module_load_include('inc', 'nasform', 'cache');
+
+
+/**
+ * Implements hook_permission().
+ */
+function nasform_permission() {
+  return array(
+    'admin nasform' => array(
+      'title' => t('Admin nasform'),
+      'description' => t('Users of nasform'),
+    ),
+  );
+}
+
+function nasform_theme($existing, $type, $theme, $path) {
+  $theme = array();
+  $theme['video'] = array(
+    'render element' => 'page',
+    'template' => 'video',
+    'path' => drupal_get_path('module', 'nasform'),
+    'variables' => array('video_link' => NULL),
+  );
+  return $theme;
+}
+
+function nasform_element_info() {
+  require_once 'nasform_elements.inc';
+  return _nasform_element_info();
+}
+
+function template_preprocess_video(&$variables) {
+  $variables['video_link'] = $_GET['video_link'];
+}
+
+/**
+ * Implements hook_menu().
+ */
+function nasform_menu() {
+  $items = array();
+  $items['nasform-page'] = array(
+    'title' => 'Registration Form',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('nasform_page_form'),
+    'access callback' => TRUE,
+    'expanded' => TRUE,
+    'type' => MENU_NORMAL_ITEM,
+    'menu_name' => 'main-menu',
+  );
+  $items['admin/config/content/content_form'] = array(
+    'title' => 'Page of administrator',
+    'description' => 'Administration',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('nasform_page_admin_settings'),
+    'access arguments' => array('admin content form'),
+  );
+  $items['youtube/video'] = array(
+    'title' => 'Video page',
+    'page callback' => '_nasform_video_page',
+    'page arguments' => array(),
+    'access arguments' => array('access nasform_page content'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['table_data'] = array(
+    'title' => 'Table with data',
+    'page callback' => 'nasform_table_data_page',
+    'access arguments' => array('administer site configuration'),
+  );
+  $items['nasform-page/%/delete'] = array(
+    'title callback' => 'nasform_delete_page_title',
+    'title arguments' => array(1),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('nasform_delete_form', 1),
+    'access arguments' => array('administer site configuration'),
+  );
+  $items['nasform-page/%/update'] = array(
+    'title callback' => 'nasform_update_page_title',
+    'title arguments' => array(1),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('nasform_update_form', 1),
+    'access arguments' => array('administer site configuration'),
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_form_BASE_FORM_ID_alter().
+ */
+function nasform_form_olga_contact_form_alter(&$form, &$form_state, $form_id) {
+  $form['olga_contact_form_submit']['#weight'] = 1;
+  $form['pass'] = array(
+    '#type' => 'textfield',
+    '#title' => variable_get(t('user-pass')),
+    '#size' => 20,
+    '#required' => TRUE
+  );
+  return $form;
+}
+
+/*
+ * Build user form
+ */
+
+function nasform_page_form($form, $form_state) {
+  $form = array();
+  $form['name'] = array(
+    '#type' => 'textfield',
+    '#title' => variable_get(t('user-name')),
+    '#size' => 20,
+    '#required' => TRUE
+  );
+  $form['login'] = array(
+    '#type' => 'textfield',
+    '#title' => variable_get(t('user-login')),
+    '#states' => array(
+      'visible' => array(
+        ':input[name="name"]' => array('filled' => TRUE),
+      ),
+    ),
+    '#size' => 20,
+    '#required' => TRUE
+  );
+  $form['mail'] = array(
+    '#type' => 'textfield',
+    '#title' => variable_get(t('user-mail')),
+    '#size' => 20,
+    '#required' => TRUE
+  );
+  $form['pass'] = array(
+    '#type' => 'textfield',
+    '#title' => variable_get(t('user-pass')),
+    '#size' => 20,
+    '#required' => TRUE
+  );
+  $form['nasform_video_link'] = array(
+    '#type' => 'textfield',
+    '#title' => t('YouTube video:'),
+    '#size' => 20,
+  );
+  $form['a_nasform_element_combined'] = array(
+    '#type' => 'nasform_phonenumber_combined',
+    '#default_value' => variable_get('nasform_phonenumber_combined'),
+  );
+
+  $form['gender'] = ['#type' => 'select',
+    '#title' => variable_get(t('user-gender')),
+    '#options' => array('#male' => t('male'), '#female' => t('female')),
+  ];
+  $form['toggle_me'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Tick this box to type your age'),
+  );
+  $form['settings'] = array(
+    '#type' => 'textfield',
+    '#states' => array(
+      'visible' => array(
+        ':input[name="toggle_me"]' => array('checked' => TRUE),
+      ),
+    ),
+  );
+   
+    $form['ask_question'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Ask a question'),
+    '#ajax' => array(
+      'callback' => 'nasform_autotextfields_callback',
+      'wrapper' => 'textfields',
+      'effect' => 'fade',
+    ),
+  );
+  $form['textfields'] = array(
+    '#title' => t("Generated text fields for question"),
+    '#prefix' => '<div id="textfields">',
+    '#suffix' => '</div>',
+    '#type' => 'fieldset',
+  );
+  if (!empty($form_state['values']['ask_question']) && $form_state['values']['ask_question']) {
+    $form['textfields']['question'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Question'),
+    );
+  }
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Log in'),
+    );
+   
+    $form['button'] = array(
+    '#type' => 'button',
+    '#value' => t('Button for change color'),
+      '#ajax' => array(
+      'callback' => 'nasform_form_ajax_callback',
+    ),
+    '#attached' => array(
+      'js' => array(
+        drupal_get_path('module', 'nasform') . '/js/nasform_ajax.js' => array(
+          'scope' => 'footer',
+        ),
+      ),
+    ), 
+  );
+  return $form;
+}
+
+function nasform_autotextfields_callback($form, $form_state) {
+  return $form['textfields'];
+}
+
+function nasform_form_ajax_callback($form, $form_state) {
+  $commands = array();
+  $commands[] = ajax_command_invoke(NULL, 'special_effects', array());
+  return array('#type' => 'ajax', '#commands' => $commands);
+}
+
+function nasform_db_insert($form) {
+  $return_value = db_insert('nasform_table')
+      ->fields(array(
+        'name' => "{$form['name']['#value']}",
+        'login' => "{$form['login']['#value']}",
+        'mail' => "{$form['mail']['#value']}",
+        'pass' => "{$form['pass']['#value']}",
+      ))
+      ->execute();
+  dpm($form['name']['#value']);
+  return $return_value;
+}
+
+/**
+ * Build page with table.
+ */
+function nasform_table_data_page() {
+  return _nasform_cached_data();
+}
+
+/**
+ * Callback title for delete page.
+ */
+function nasform_delete_page_title($id) {
+  $placeholders = array(':id' => $id);
+  $login = db_query("SELECT `login` FROM {nasform_table} WHERE `id` = :id", $placeholders)->fetchField();
+  if ($login) {
+    return t('Are you sure you want to delete item with login "@log"?', array('@log' => $login));
+  }
+  else {
+    return t('Id not found.');
+  }
+}
+
+/**
+ * Build delete form page.
+ */
+function nasform_delete_form($form, $form_state) {
+  $form = array();
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+  );
+  $form['cancel'] = array(
+    '#markup' => l(t('Cancel'), 'table_data'),
+  );
+  return $form;
+}
+
+/**
+ * Submit function for delete form.
+ */
+function nasform_delete_form_submit($form, &$form_state) {
+  $id = $form_state['build_info']['args'][0];
+  $result = db_delete('nasform_table')
+      ->condition('id', $id)
+      ->execute();
+  $placeholders = array('@id' => $id);
+  if ($result) {
+    drupal_set_message(t('Record @id successfully removed.', $placeholders));
+  }
+  else {
+    drupal_set_message(t('Record @id is undefined.', $placeholders), 'warning');
+  }
+  $form_state['redirect'] = 'table_data';
+  cache_clear_all(NULL, 'cache_nasform');
+}
+
+/**
+ * Callback title for delete page.
+ */
+function nasform_update_page_title($id) {
+  $placeholders = array(':id' => $id);
+  $login = db_query("SELECT `login` FROM {nasform_table} WHERE `id` = :id", $placeholders)->fetchField();
+  if ($login) {
+    return t('Edit item with login "@log"', array('@log' => $login));
+  }
+  else {
+    return t('Id not found.');
+  }
+}
+
+/**
+ * Build form for update data.
+ */
+function nasform_update_form($form, $form_state) {
+  $form = array();
+  $id = $form_state['build_info']['args'][0];
+
+  // Extract data.
+  $data = db_select('nasform_table', 'n')
+      ->condition('n.id', $id)
+      ->fields('n')
+      ->execute()
+      ->fetchAssoc();
+
+  // Check id.
+  if (empty($data) || empty($data['login'])) {
+    $placeholders = array(
+      '@id' => $id,
+      '!back' => l(t('Go back'), 'table_data'),
+    );
+    $form['text'] = array(
+      '#markup' => t('Undefined "@id" id. !back.', $placeholders),
+    );
+    return $form;
+  }
+  $form = array();
+  $form['name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('User name'),
+    '#size' => 20,
+    '#default_value' => $data['name'],
+  );
+  $form['login'] = array(
+    '#type' => 'textfield',
+    '#title' => t('User login'),
+    '#size' => 20,
+    '#default_value' => $data['login'],
+  );
+  $form['mail'] = array(
+    '#type' => 'textfield',
+    '#title' => t('User mail'),
+    '#size' => 20,
+    '#default_value' => $data['mail'],
+  );
+  $form['pass'] = array(
+    '#type' => 'textfield',
+    '#title' => t('User pass'),
+    '#size' => 20,
+    '#default_value' => $data['pass'],
+  );
+  // Action elements.
+  $form['actions'] = array('#type' => 'actions');
+  $form['actions']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+  );
+  $form['actions']['cancel'] = array(
+    '#markup' => l(t('Cancel'), 'table_data')
+  );
+  return $form;
+}
+
+/*
+ * Submit function for nasform_page_form.
+ */
+
+function nasform_page_form_submit($form, &$form_state) {
+  $name = $form_state['values']['name'];
+  $login = $form_state['values']['login'];
+  $mail = $form_state['values']['mail'];
+  $pass = $form_state['values']['pass'];
+  drupal_set_message(t("@count, congratulations, you are registered!", array('@count' => $name)));
+  $video = _nasform_convert_link($form_state['values']['nasform_video_link']);
+
+  $form_state['rebuild'] = FALSE;
+  if (nasform_db_insert($form)) {
+    drupal_set_message(t('@name, the form is submitted', array('@name' => $form['name']['#value'])));
+  }
+  else {
+    rupal_set_message(t('something went wrong!'), 'error');
+  }
+  drupal_goto('youtube/video', array(
+    'query' => array(
+      'video_link' => $video,
+    ),
+  ));
+}
+
+/**
+ * Submit function for update form.
+ */
+function nasform_update_form_submit($form, &$form_state) {
+  $id = $form_state['build_info']['args'][0];
+  $values = $form_state['values'];
+
+  // Update data.
+  $query = db_update('nasform_table')
+      ->fields(array(
+        'name' => $values['name'],
+        'login' => $values['login'],
+        'mail' => $values['mail'],
+        'pass' => $values['pass'],
+      ))
+      ->condition('id', $id)
+      ->execute();
+
+  // Check update status.
+  if ($query) {
+    drupal_set_message(t('Data updated successfully'));
+  }
+  else {
+    drupal_set_message(t('Data is not updated'), 'warning');
+  }
+
+  $form_state['redirect'] = 'table_data';
+  cache_clear_all(NULL, 'cache_nasform');
+}
+
+function _nasform_convert_link($url) {
+  if ($url == '') {
+    return $url;
+  }
+  $step1 = explode('v=', $url);
+  $step2 = explode('&', $step1[1]);
+  $video_id = $step2[0];
+  return $video_id;
+}
+
+function _nasform_video_page() {
+  return theme('video');
+}

@@ -1,0 +1,4 @@
+name = nasform_ajax
+description = "A simple Ajax command"
+core = 7.x
+scripts[] = js/nasform_ajax.js
