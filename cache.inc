@@ -6,7 +6,7 @@ function _nasform_cached_data() {
 
   if (!isset($my_data)) {
     if (($cache = cache_get('nasform_data' . $cache_id, 'cache_nasform')) && !empty($cache->data)) {
-      $my_data = unserialize($cache->data);
+      $my_data = ($cache->data);
       drupal_set_message(t('cached'));
     }
     else {
@@ -28,7 +28,7 @@ function _nasform_cached_data() {
         );
       }
       $my_data = array('header' => $header, 'rows' => $rows);
-      cache_set('nasform_data' . $cache_id, serialize($my_data), 'cache_nasform', 60 * 60);
+      cache_set('nasform_data' . $cache_id, $my_data, 'cache_nasform', 60 * 60);
     }
   }
   return theme('table', $my_data);
